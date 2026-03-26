@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>大島キャンプ場 ポータル</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --green:  #2d6a4f;
+      --green2: #40916c;
+      --light:  #f0f7f4;
+      --accent: #74c69d;
+      --gray:   #6b7280;
+      --white:  #ffffff;
+      --border: #d1e7dd;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Hiragino Sans", "Yu Gothic", sans-serif; background: var(--light); color: #1a1a2e; }
+
+    /* ナビ */
+    nav {
+      background: var(--green);
+      color: white;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    }
+    nav .logo { font-size: 1.1rem; font-weight: 700; margin-right: 32px; white-space: nowrap; }
+    nav a {
+      color: rgba(255,255,255,.8);
+      text-decoration: none;
+      padding: 0 14px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      font-size: .9rem;
+      transition: background .2s;
+    }
+    nav a:hover, nav a.active { background: rgba(255,255,255,.15); color: white; }
+    nav .spacer { flex: 1; }
+    nav .updated { font-size: .78rem; color: rgba(255,255,255,.6); }
+
+    /* ページ切替 */
+    .page { display: none; padding: 24px; max-width: 1200px; margin: 0 auto; }
+    .page.active { display: block; }
+
+    /* カードグリッド */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .kpi-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      border-left: 4px solid var(--green2);
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .kpi-card .label { font-size: .78rem; color: var(--gray); margin-bottom: 6px; }
+    .kpi-card .value { font-size: 1.7rem; font-weight: 700; color: var(--green); }
+    .kpi-card .sub   { font-size: .78rem; color: var(--gray); margin-top: 4px; }
+
+    /* チャートカード */
+    .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 20px; margin-bottom: 24px; }
+    .chart-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    .chart-card h3 { font-size: .95rem; color: var(--green); margin-bottom: 16px; }
+    .chart-card canvas { max-height: 280px; }
+
+    /* テーブル */
+    .table-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      overflow-x: auto;
+    }
+    .table-card h3 { font-size: .95rem; color: var(--green); margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th { background: var(--light); padding: 8px 12px; text-align: left; color: var(--green); border-bottom: 2px solid var(--border); white-space: nowrap; }
+    td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
+    tr:hover td { background: #fafff9; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: .78rem;
+    }
+    .badge-active  { background: #d1fae5; color: #065f46; }
+    .badge-cancel  { background: #fee2e2; color: #991b1b; }
+
+    /* フィルタ */
+    .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-bar select, .filter-bar input {
+      padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: .85rem; background: white;
+    }
+    .btn {
+      padding: 7px 16px; border-radius: 8px; border: none; cursor: pointer;
+      font-size: .85rem; font-weight: 600; transition: opacity .2s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: var(--green2); color: white; }
+    .btn-outline { background: white; color: var(--green); border: 1px solid var(--green2); }
+
+    /* ローディング */
+    .loading {
+      text-align: center; padding: 60px; color: var(--gray);
+    }
+    .spinner {
+      display: inline-block; width: 32px; height: 32px;
+      border: 3px solid var(--border); border-top-color: var(--green2);
+      border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 設定 */
+    .settings-card {
+      background: white; border-radius: 12px; padding: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08); max-width: 600px;
+    }
+    .settings-card h3 { color: var(--green); margin-bottom: 16px; }
+    .form-row { margin-bottom: 14px; }
+    .form-row label { display: block; font-size: .85rem; color: var(--gray); margin-bottom: 4px; }
+    .form-row input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: .9rem; }
+    .info-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 16px; font-size: .83rem; color: #92400e; margin-bottom: 16px; }
+
+    @media (max-width: 640px) {
+      .chart-grid { grid-template-columns: 1fr; }
+      nav a span { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">🏕 大島キャンプ場</div>
+  <a href="#" class="active" onclick="showPage('dashboard',this)"><span>ダッシュボード</span></a>
+  <a href="#" onclick="showPage('revenue',this)"><span>売上分析</span></a>
+  <a href="#" onclick="showPage('guests',this)"><span>ゲスト分析</span></a>
+  <a href="#" onclick="showPage('reservations',this)"><span>予約一覧</span></a>
+  <div class="spacer"></div>
+  <span class="updated" id="updated-at">読込中...</span>
+</nav>
+
+<!-- ダッシュボード -->
+<div id="page-dashboard" class="page active">
+  <div class="kpi-grid" id="kpi-grid">
+    <div class="loading"><div class="spinner"></div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>月別売上（チェックイン月）</h3>
+      <canvas id="chart-monthly-revenue"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>月別予約件数</h3>
+      <canvas id="chart-monthly-bookings"></canvas>
+    </div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>サイト種別 — 売上内訳</h3>
+      <canvas id="chart-site-revenue"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>チェックイン曜日分布</h3>
+      <canvas id="chart-day"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- 売上分析 -->
+<div id="page-revenue" class="page">
+  <div class="table-card">
+    <h3>月別詳細集計</h3>
+    <table id="table-monthly">
+      <thead>
+        <tr>
+          <th>月</th><th>予約件数</th><th>キャンセル</th><th>売上合計</th>
+          <th>平均単価</th><th>宿泊者数</th><th>平均泊数</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-monthly"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ゲスト分析 -->
+<div id="page-guests" class="page">
+  <div class="kpi-grid" id="guest-kpi"></div>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>利用回数分布（リピーター分析）</h3>
+      <canvas id="chart-visit"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>ペット同伴率</h3>
+      <canvas id="chart-pet"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- 予約一覧 -->
+<div id="page-reservations" class="page">
+  <div class="filter-bar">
+    <select id="filter-month">
+      <option value="">全月</option>
+    </select>
+    <select id="filter-status">
+      <option value="">全ステータス</option>
+      <option value="有効">有効のみ</option>
+      <option value="キャンセル済">キャンセルのみ</option>
+    </select>
+    <input id="filter-search" type="text" placeholder="氏名・予約番号で検索">
+    <button class="btn btn-primary" onclick="applyFilter()">絞込</button>
+    <button class="btn btn-outline" onclick="resetFilter()">リセット</button>
+    <span id="count-label" style="font-size:.83rem;color:var(--gray)"></span>
+  </div>
+  <div class="table-card">
+    <table id="table-reservations">
+      <thead>
+        <tr>
+          <th>予約番号</th><th>予約日時</th><th>チェックイン</th>
+          <th>泊数</th><th>サイト種別</th><th>大人</th><th>子供</th>
+          <th>合計人数</th><th>金額</th><th>支払い</th>
+          <th>氏名</th><th>利用回数</th><th>ステータス</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-reservations"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 設定 — GAS Web App の URL をここに入れる
+// ============================================================
+let API_URL = localStorage.getItem("api_url") || "";
+
+// ============================================================
+// キャッシュ
+// ============================================================
+const cache = {};
+
+async function fetchAPI(action, params = {}) {
+  if (!API_URL) {
+    showAPISetup();
+    return null;
+  }
+  const key = action + JSON.stringify(params);
+  if (cache[key]) return cache[key];
+
+  const url = new URL(API_URL);
+  url.searchParams.set("action", action);
+  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+
+  const res = await fetch(url);
+  const data = await res.json();
+  cache[key] = data;
+  return data;
+}
+
+// ============================================================
+// ページ切替
+// ============================================================
+function showPage(name, el) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll("nav a").forEach(a => a.classList.remove("active"));
+  document.getElementById("page-" + name).classList.add("active");
+  if (el) el.classList.add("active");
+  loadPage(name);
+  return false;
+}
+
+// ============================================================
+// 初期ロード
+// ============================================================
+window.onload = () => {
+  if (!API_URL) {
+    showAPISetup();
+  } else {
+    loadPage("dashboard");
+  }
+};
+
+// ============================================================
+// API URL 設定ダイアログ
+// ============================================================
+function showAPISetup() {
+  const existing = document.getElementById("setup-overlay");
+  if (existing) return;
+  const overlay = document.createElement("div");
+  overlay.id = "setup-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:999";
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:16px;padding:32px;max-width:500px;width:90%">
+      <h2 style="color:#2d6a4f;margin-bottom:8px">初期設定</h2>
+      <p style="font-size:.85rem;color:#6b7280;margin-bottom:20px">
+        GAS Web App の URL を入力してください。<br>
+        GAS スクリプトエディタ → デプロイ → ウェブアプリ → URLをコピー
+      </p>
+      <div class="form-row">
+        <label>GAS Web App URL</label>
+        <input id="input-api-url" type="text" placeholder="https://script.google.com/macros/s/..." style="width:100%;padding:8px 12px;border:1px solid #d1e7dd;border-radius:8px;font-size:.9rem">
+      </div>
+      <button class="btn btn-primary" style="width:100%;padding:10px" onclick="saveAPIUrl()">保存して開始</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function saveAPIUrl() {
+  const v = document.getElementById("input-api-url").value.trim();
+  if (!v) return alert("URLを入力してください");
+  API_URL = v;
+  localStorage.setItem("api_url", v);
+  document.getElementById("setup-overlay").remove();
+  loadPage("dashboard");
+}
+
+// ============================================================
+// ダッシュボード
+// ============================================================
+let chartsCreated = {};
+
+async function loadPage(name) {
+  if (name === "dashboard") await loadDashboard();
+  if (name === "revenue")   await loadRevenue();
+  if (name === "guests")    await loadGuests();
+  if (name === "reservations") await loadReservations();
+}
+
+async function loadDashboard() {
+  const [summary, monthly, siteStats, guestStats] = await Promise.all([
+    fetchAPI("summary"),
+    fetchAPI("monthly"),
+    fetchAPI("sitetype"),
+    fetchAPI("guests"),
+  ]);
+  if (!summary) return;
+
+  // KPI
+  document.getElementById("kpi-grid").innerHTML = `
+    <div class="kpi-card">
+      <div class="label">今月の売上</div>
+      <div class="value">¥${fmt(summary.this_month.revenue)}</div>
+      <div class="sub">今月の予約件数: ${summary.this_month.bookings}件</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">累計売上（有効）</div>
+      <div class="value">¥${fmt(summary.total_revenue)}</div>
+      <div class="sub">累計予約: ${fmt(summary.total_bookings)}件</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">平均客単価</div>
+      <div class="value">¥${fmt(summary.avg_amount)}</div>
+      <div class="sub">累計宿泊者: ${fmt(summary.total_guests)}人</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">リピーター率</div>
+      <div class="value">${summary.repeater_rate}%</div>
+      <div class="sub">リピーター ${fmt(summary.repeater_count)}件</div>
+    </div>
+  `;
+
+  document.getElementById("updated-at").textContent =
+    "更新: " + new Date(summary.updated_at).toLocaleString("ja-JP", {month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
+
+  // 月別チャート
+  const labels = monthly.map(m => m.month);
+  const revenues = monthly.map(m => m.revenue);
+  const bookings = monthly.map(m => m.bookings);
+
+  mkChart("chart-monthly-revenue", "bar", labels, revenues, "売上", "#40916c");
+  mkChart("chart-monthly-bookings", "bar", labels, bookings, "予約件数", "#74c69d");
+
+  // サイト種別
+  if (siteStats) {
+    mkPie("chart-site-revenue", siteStats.map(s => s.site), siteStats.map(s => s.revenue), "売上");
+  }
+
+  // 曜日
+  if (guestStats) {
+    const days = guestStats.checkin_by_day;
+    mkChart("chart-day", "bar", days.map(d => d.day+"曜"), days.map(d => d.count), "件数", "#b7e4c7");
+  }
+}
+
+// ============================================================
+// 売上分析
+// ============================================================
+async function loadRevenue() {
+  const monthly = await fetchAPI("monthly");
+  if (!monthly) return;
+  const tbody = document.getElementById("tbody-monthly");
+  tbody.innerHTML = monthly.slice().reverse().map(m => `
+    <tr>
+      <td>${m.month}</td>
+      <td>${m.bookings}</td>
+      <td>${m.cancels}</td>
+      <td>¥${fmt(m.revenue)}</td>
+      <td>¥${fmt(m.avg_amount)}</td>
+      <td>${m.guests}人</td>
+      <td>${m.avg_nights}泊</td>
+    </tr>
+  `).join("");
+}
+
+// ============================================================
+// ゲスト分析
+// ============================================================
+async function loadGuests() {
+  const [summary, guests] = await Promise.all([fetchAPI("summary"), fetchAPI("guests")]);
+  if (!guests) return;
+
+  document.getElementById("guest-kpi").innerHTML = `
+    <div class="kpi-card">
+      <div class="label">リピーター率</div>
+      <div class="value">${summary.repeater_rate}%</div>
+      <div class="sub">2回以上利用 ${fmt(summary.repeater_count)}件</div>
+    </div>
+    <div class="kpi-card">
+      <div class="label">ペット同伴率</div>
+      <div class="value">${guests.with_pet_rate}%</div>
+      <div class="sub">ペット同伴 ${fmt(guests.with_pet_count)}件</div>
+    </div>
+  `;
+
+  const vd = guests.visit_distribution;
+  mkPie("chart-visit", Object.keys(vd), Object.values(vd), "件数");
+
+  // ペット
+  const petData = [guests.with_pet_count, summary.total_bookings - guests.with_pet_count];
+  mkPie("chart-pet", ["同伴あり","同伴なし"], petData, "件数");
+}
+
+// ============================================================
+// 予約一覧
+// ============================================================
+let allReservations = [];
+
+async function loadReservations() {
+  if (allReservations.length > 0) { renderTable(); return; }
+  document.getElementById("tbody-reservations").innerHTML =
+    '<tr><td colspan="13" class="loading"><div class="spinner"></div></td></tr>';
+
+  const data = await fetchAPI("reservations");
+  if (!data) return;
+  allReservations = data;
+
+  // 月セレクト生成
+  const months = [...new Set(data.map(r => r.checkin ? r.checkin.slice(0,7) : ""))].filter(Boolean).sort().reverse();
+  const sel = document.getElementById("filter-month");
+  sel.innerHTML = '<option value="">全月</option>' + months.map(m => `<option value="${m}">${m}</option>`).join("");
+
+  renderTable();
+}
+
+function renderTable(filtered) {
+  const rows = filtered || allReservations;
+  document.getElementById("count-label").textContent = rows.length + "件";
+  document.getElementById("tbody-reservations").innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.id}</td>
+      <td>${r.reserved_at}</td>
+      <td>${r.checkin}</td>
+      <td>${r.nights}泊</td>
+      <td>${r.site_type}</td>
+      <td>${r.adults}</td>
+      <td>${r.children}</td>
+      <td>${r.total_guests}</td>
+      <td>¥${fmt(r.total_amount)}</td>
+      <td>${r.payment_method}</td>
+      <td>${r.guest_name}</td>
+      <td>${r.visit_count}</td>
+      <td><span class="badge ${r.status==='有効'?'badge-active':'badge-cancel'}">${r.status}</span></td>
+    </tr>
+  `).join("");
+}
+
+function applyFilter() {
+  const month  = document.getElementById("filter-month").value;
+  const status = document.getElementById("filter-status").value;
+  const search = document.getElementById("filter-search").value.trim().toLowerCase();
+
+  let rows = allReservations;
+  if (month)  rows = rows.filter(r => r.checkin && r.checkin.startsWith(month));
+  if (status) rows = rows.filter(r => r.status === status);
+  if (search) rows = rows.filter(r =>
+    r.guest_name.toLowerCase().includes(search) || String(r.id).includes(search)
+  );
+  renderTable(rows);
+}
+
+function resetFilter() {
+  document.getElementById("filter-month").value = "";
+  document.getElementById("filter-status").value = "";
+  document.getElementById("filter-search").value = "";
+  renderTable();
+}
+
+// ============================================================
+// チャートヘルパー
+// ============================================================
+const COLORS = ["#40916c","#74c69d","#b7e4c7","#d8f3dc","#2d6a4f","#95d5b2","#52b788","#1b4332"];
+
+function mkChart(id, type, labels, values, label, color) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  if (chartsCreated[id]) chartsCreated[id].destroy();
+  chartsCreated[id] = new Chart(ctx, {
+    type,
+    data: {
+      labels,
+      datasets: [{ label, data: values, backgroundColor: color || COLORS[0], borderRadius: 4 }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: type === "bar" ? {
+        y: { ticks: { callback: v => v >= 10000 ? "¥"+Math.round(v/10000)+"万" : v } }
+      } : {}
+    }
+  });
+}
+
+function mkPie(id, labels, values, label) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  if (chartsCreated[id]) chartsCreated[id].destroy();
+  chartsCreated[id] = new Chart(ctx, {
+    type: "doughnut",
+    data: { labels, datasets: [{ label, data: values, backgroundColor: COLORS }] },
+    options: { responsive: true, plugins: { legend: { position: "right" } } }
+  });
+}
+
+function fmt(n) {
+  return Number(n || 0).toLocaleString("ja-JP");
+}
+</script>
+</body>
+</html>
