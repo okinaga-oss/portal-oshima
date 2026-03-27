@@ -148,16 +148,6 @@
       <canvas id="chart-monthly-bookings"></canvas>
     </div>
   </div>
-  <div class="chart-grid">
-    <div class="chart-card">
-      <h3>サイト種別 — 売上内訳</h3>
-      <canvas id="chart-site-revenue"></canvas>
-    </div>
-    <div class="chart-card">
-      <h3>チェックイン曜日分布</h3>
-      <canvas id="chart-day"></canvas>
-    </div>
-  </div>
 </div>
 
 <!-- 売上分析 -->
@@ -306,11 +296,9 @@ async function loadPage(name) {
 }
 
 async function loadDashboard() {
-  const [summary, monthly, siteStats, guestStats] = await Promise.all([
+  const [summary, monthly] = await Promise.all([
     fetchAPI("summary"),
     fetchAPI("monthly"),
-    fetchAPI("sitetype"),
-    fetchAPI("guests"),
   ]);
   if (!summary) return;
 
@@ -349,16 +337,6 @@ async function loadDashboard() {
   mkChart("chart-monthly-revenue", "bar", labels, revenues, "売上", "#40916c");
   mkChart("chart-monthly-bookings", "bar", labels, bookings, "予約件数", "#74c69d");
 
-  // サイト種別
-  if (siteStats) {
-    mkPie("chart-site-revenue", siteStats.map(s => s.site), siteStats.map(s => s.revenue), "売上");
-  }
-
-  // 曜日
-  if (guestStats) {
-    const days = guestStats.checkin_by_day;
-    mkChart("chart-day", "bar", days.map(d => d.day+"曜"), days.map(d => d.count), "件数", "#b7e4c7");
-  }
 }
 
 // ============================================================
