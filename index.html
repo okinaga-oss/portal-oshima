@@ -94,20 +94,6 @@
     .badge-active  { background: #d1fae5; color: #065f46; }
     .badge-cancel  { background: #fee2e2; color: #991b1b; }
 
-    /* フィルタ */
-    .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
-    .filter-bar select, .filter-bar input {
-      padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px;
-      font-size: .85rem; background: white;
-    }
-    .btn {
-      padding: 7px 16px; border-radius: 8px; border: none; cursor: pointer;
-      font-size: .85rem; font-weight: 600; transition: opacity .2s;
-    }
-    .btn:hover { opacity: .85; }
-    .btn-primary { background: var(--green2); color: white; }
-    .btn-outline { background: white; color: var(--green); border: 1px solid var(--green2); }
-
     /* ローディング */
     .loading {
       text-align: center; padding: 60px; color: var(--gray);
@@ -143,7 +129,6 @@
   <a href="#" class="active" onclick="showPage('dashboard',this)"><span>ダッシュボード</span></a>
   <a href="#" onclick="showPage('revenue',this)"><span>売上分析</span></a>
   <a href="#" onclick="showPage('guests',this)"><span>ゲスト分析</span></a>
-  <a href="#" onclick="showPage('reservations',this)"><span>予約一覧</span></a>
   <div class="spacer"></div>
   <span class="updated" id="updated-at">読込中...</span>
 </nav>
@@ -206,36 +191,6 @@
   </div>
 </div>
 
-<!-- 予約一覧 -->
-<div id="page-reservations" class="page">
-  <div class="filter-bar">
-    <select id="filter-month">
-      <option value="">全月</option>
-    </select>
-    <select id="filter-status">
-      <option value="">全ステータス</option>
-      <option value="有効">有効のみ</option>
-      <option value="キャンセル済">キャンセルのみ</option>
-    </select>
-    <input id="filter-search" type="text" placeholder="氏名・予約番号で検索">
-    <button class="btn btn-primary" onclick="applyFilter()">絞込</button>
-    <button class="btn btn-outline" onclick="resetFilter()">リセット</button>
-    <span id="count-label" style="font-size:.83rem;color:var(--gray)"></span>
-  </div>
-  <div class="table-card">
-    <table id="table-reservations">
-      <thead>
-        <tr>
-          <th>予約番号</th><th>予約日時</th><th>チェックイン</th>
-          <th>泊数</th><th>サイト種別</th><th>大人</th><th>子供</th>
-          <th>合計人数</th><th>金額</th><th>支払い</th>
-          <th>氏名</th><th>利用回数</th><th>ステータス</th>
-        </tr>
-      </thead>
-      <tbody id="tbody-reservations"></tbody>
-    </table>
-  </div>
-</div>
 
 <script>
 // ============================================================
@@ -348,7 +303,6 @@ async function loadPage(name) {
   if (name === "dashboard") await loadDashboard();
   if (name === "revenue")   await loadRevenue();
   if (name === "guests")    await loadGuests();
-  if (name === "reservations") await loadReservations();
 }
 
 async function loadDashboard() {
@@ -453,71 +407,6 @@ async function loadGuests() {
   // ペット
   const petData = [guests.with_pet_count, summary.total_bookings - guests.with_pet_count];
   mkPie("chart-pet", ["同伴あり","同伴なし"], petData, "件数");
-}
-
-// ============================================================
-// 予約一覧
-// ============================================================
-let allReservations = [];
-
-async function loadReservations() {
-  if (allReservations.length > 0) { renderTable(); return; }
-  document.getElementById("tbody-reservations").innerHTML =
-    '<tr><td colspan="13" class="loading"><div class="spinner"></div></td></tr>';
-
-  const data = await fetchAPI("reservations");
-  if (!data) return;
-  allReservations = data;
-
-  // 月セレクト生成
-  const months = [...new Set(data.map(r => r.checkin ? r.checkin.slice(0,7) : ""))].filter(Boolean).sort().reverse();
-  const sel = document.getElementById("filter-month");
-  sel.innerHTML = '<option value="">全月</option>' + months.map(m => `<option value="${m}">${m}</option>`).join("");
-
-  renderTable();
-}
-
-function renderTable(filtered) {
-  const rows = filtered || allReservations;
-  document.getElementById("count-label").textContent = rows.length + "件";
-  document.getElementById("tbody-reservations").innerHTML = rows.map(r => `
-    <tr>
-      <td>${r.id}</td>
-      <td>${r.reserved_at}</td>
-      <td>${r.checkin}</td>
-      <td>${r.nights}泊</td>
-      <td>${r.site_type}</td>
-      <td>${r.adults}</td>
-      <td>${r.children}</td>
-      <td>${r.total_guests}</td>
-      <td>¥${fmt(r.total_amount)}</td>
-      <td>${r.payment_method}</td>
-      <td>${r.guest_name}</td>
-      <td>${r.visit_count}</td>
-      <td><span class="badge ${r.status==='有効'?'badge-active':'badge-cancel'}">${r.status}</span></td>
-    </tr>
-  `).join("");
-}
-
-function applyFilter() {
-  const month  = document.getElementById("filter-month").value;
-  const status = document.getElementById("filter-status").value;
-  const search = document.getElementById("filter-search").value.trim().toLowerCase();
-
-  let rows = allReservations;
-  if (month)  rows = rows.filter(r => r.checkin && r.checkin.startsWith(month));
-  if (status) rows = rows.filter(r => r.status === status);
-  if (search) rows = rows.filter(r =>
-    r.guest_name.toLowerCase().includes(search) || String(r.id).includes(search)
-  );
-  renderTable(rows);
-}
-
-function resetFilter() {
-  document.getElementById("filter-month").value = "";
-  document.getElementById("filter-status").value = "";
-  document.getElementById("filter-search").value = "";
-  renderTable();
 }
 
 // ============================================================
